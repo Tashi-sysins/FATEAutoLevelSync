@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+
+  <!--
+    TargetFramework / LangVersion / Platforms / Nullable / AllowUnsafeBlocks / Dalamud 系の参照は Dalamud.NET.Sdk の既定値を使う。
+    Dalamud 系の部品（Dalamud・FFXIVClientStructs・Lumina 等）は Dalamud が用意するので配布物に入らない（SDK が Private=false で参照する）。
+    NuGet の部品は足していない。配布物に入るのはこのプラグインの DLL と manifest だけ。
+  -->
+  <PropertyGroup>
+    <Version>0.1.0.0</Version>
+    <RootNamespace>FATEAutoLevelSync</RootNamespace>
+    <AssemblyName>FATEAutoLevelSync</AssemblyName>
+
+    <!--
+      manifest の項目（DalamudPackager が読む）。
+      説明文（Description）は短い1行だけ。プラグイン一覧の詳しい表示は、この1行とコマンドの行だけになる。
+      コマンドの行は Dalamud が登録したコマンドの説明（Plugin.cs の HelpMessage）から自動で並べる。
+      Dalamud の開発プラグインの点検（PluginValidator）は、説明文を ASCII の空白・改行で区切った語が1つ以下だと
+      「説明文が無いか短すぎる」と出す。日本語は空白が無いと1語に数えられるので、「FATE」の後ろの空白は消さない。
+    -->
+    <Author>ヌル</Author>
+    <Name>FATE自動レベルシンク</Name>
+    <Punchline>サーバー情報バーに「レベシンク：ON/OFF」を表示して、クリックで切り替え</Punchline>
+    <Description>FATE に入ったら自動でレベルシンクします</Description>
+    <Tags>fate;levelsync;dtr</Tags>
+  </PropertyGroup>
+
+  <!-- ビルド時刻をアセンブリへ埋め込む（古い DLL が動いていないかの切り分け用） -->
+  <ItemGroup>
+    <AssemblyMetadata Include="BuildTime" Value="$([System.DateTime]::Now.ToString('yyyy-MM-dd HH:mm:ss'))" />
+  </ItemGroup>
+
+  <!--
+    Release でビルドしたら dev プラグインの置き場へ写す（環境変数 FALS_DEPLOY_DIR に置き場を入れたときだけ。未指定なら写さない）。
+    DalamudPackager が manifest を作った後に走らせる（Release のターゲットの後だけに付ける。Debug 側も並べると古い manifest を写す）。
+    Dalamud は DLL の更新を見張って読み込み直すので、manifest を先に、DLL を最後に写す（DLL を先に写すと、写し途中の manifest を読んで失敗する）。
+  -->
+  <PropertyGroup>
+    <DeployDir Condition="'$(Configuration)' == 'Release' And '$(FALS_DEPLOY_DIR)' != ''">$([MSBuild]::EnsureTrailingSlash('$(FALS_DEPLOY_DIR)'))</DeployDir>
+  </PropertyGroup>
+
+  <Target Name="DeployToPluginFolder"
+          AfterTargets="DefaultDalamudPackagerRelease"
+          Condition="'$(DeployDir)' != ''">
+    <MakeDir Directories="$(DeployDir)" />
+    <Copy SourceFiles="$(OutputPath)$(AssemblyName).json;$(OutputPath)$(AssemblyName).deps.json"
+          DestinationFolder="$(DeployDir)" SkipUnchangedFiles="true" ContinueOnError="true" />
+    <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll"
+          DestinationFolder="$(DeployDir)" SkipUnchangedFiles="true" ContinueOnError="true">
+      <Output TaskParameter="CopiedFiles" ItemName="CopiedDll" />
+    </Copy>
+    <Message Importance="high" Text="配置先: $(DeployDir)（DLL を写した: @(CopiedDll->Count()) 件）" />
+    <Warning Condition="!Exists('$(DeployDir)$(AssemblyName).json')"
+             Text="manifest（$(AssemblyName).json）が配置されていません。このままでは Dalamud の一覧に出ません。" />
+  </Target>
+
+</Project>
